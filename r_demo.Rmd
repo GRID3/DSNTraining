@@ -6,8 +6,24 @@ output:
   html_document: default
 ---
 
-Using geospatial analysis in R, this demo will show an assessment of health facility coverage for maternal health using the GRID3 population data. 
+This exercise provides an example of how we can use GRID3 data within an application. 
 
+> This code is available via GitHub at www.github/GRID3/data-example
+
+# Exercise Overview
+
+Using geospatial analysis in R, this demo will show an assessment of health facility coverage for maternal health using the GRID3 population data.
+
+In this exercise we are going to:
+
+1. Load some spatial data
+2. Subset the data to focus on points of interest
+3. Aggregate dataset using some basic geospatial techniques
+4. Try and identify connections between datasets
+
+# Loading Packages
+
+For this demo, we will be using the **sp** package along with **raster** to provide most of our spatial functions. The **dismo** and **spatialEco** package provide additional functions which we will use for some of our spatial analysis.
 
 ```{r setup, include=FALSE}
 require(sp)
@@ -17,9 +33,15 @@ require(spatialEco)
 require(ggplot2)
 ```
 
+# Loading Datasets
 
-Load in health facility locations, ward boundaries and gridded population (women age 15-49) data for Kaduna State.
+We have three datasets used in this example:
+
 <!--- Can we include references to the datasets. Are these publicly available? ---> 
+
+1. **Health facility locations**: 
+2. **Ward boundaries**
+3. **Gridded population (women age 15-49) data for Kaduna State**
 
 ```{r data}
 data <- read.csv("Data/kaduna_health_sub.csv")
@@ -27,22 +49,25 @@ r <- raster("Data/nga_pop_wocba.tif")
 boundaries <- shapefile("Data/kaduna_wards.shp")
 ```
 
-View the health facility data.
+We will view our health facilty data below. In total there are `r nrow(data)` health centres recorded within the dataset. This includes data such as their location, whether the type of health centre *(primary, secondary, terariary)*, and whether it is private or publicly owned. An example of some of the data is shown below:
 
 ```{r view}
 head(data[8:18], n = 3)
 ```
 
-
-The data includes private health facilities, subset the data to only include public health facilities.
+For our example, we are only interested in **public** health centers. We will therefore filter the dataset below:
 
 ```{r subset}
 data_sub <- data[data$ownership == "Public", ]
 ```
 
-Create a spatial point dataset using the coordinates in the data and visualise the locations.
-```{r sp,message=FALSE}
+In order to conduct spatial analysis on the data, we must convert these into a spatial object. 
+
+```{r sp}
 points <- SpatialPointsDataFrame(data_sub[, c("longitude", "latitude")], data_sub)
+```
+
+We will quickly visualise this data below:
 
 ```{r locations, message=FALSE}
 theme <- theme(
@@ -58,16 +83,26 @@ ggplot() +
   theme
 ```
 
-Visualise the gridded population data 
+Visualise the gridded population data:
+
 ```{r grid vis}
 plot(boundaries)
 plot(r, add = TRUE)
 ```
 
-Create a set of voronoi polygons from the point locations. 
+# Coverage Calculations
 
-```{r voronois,message=FALSE}
+We are interested in X...
+
+Create a set of voronoi polygons from the point locations. We can use the `voronoi` function from the package **dismo** to calculate these:
+
+```{r voronois}
 v <- voronoi(points)
+```
+
+Again, we will visualise these below:
+
+```{r, message=FALSE}
 ggplot() + geom_polygon(
   data = v, aes(x = long, y = lat, group = group), fill = "white",
   colour = "black", alpha = 1
@@ -82,7 +117,8 @@ This shows an estimation of health facility coverage. Based on area, you can sta
 <!--- It would be nice to explain why you are using a focal window --->
 
 We are going to sum each in a 3x3 window to look at population density and health facility density.
-```{r pop dens,error=TRUE}
+
+```{r pop dens, error=TRUE}
 a <- focalWeight(r, 0.025, "circle")
 a[a > 0] <- 1
 p_dens <- focal(r, w = a, fun = sum, na.rm = TRUE)
@@ -93,8 +129,10 @@ hf_dens <- focal(rast, w = a, fun = sum, na.rm = TRUE)
 plot(hf_dens, main = "Health Facility Density")
 ```
 
+# Identifying Relationships
 
 We are going to look at the relationship between the facility density and population density. We can also use this to derive targets of the number of people per health facility.
+
 ```{r lm,warning=FALSE,message=FALSE}
 plot(p_dens, hf_dens, xlab = "population density 3km", ylab = "hfac density 3km")
 abline(lm(values(hf_dens) ~ values(p_dens)))
@@ -110,7 +148,8 @@ head(z, nrow = 3)
 v@data <- data.frame(v@data, z[match(v@data[, "name"], z[, "ID"]), ])
 ```
 
-Here, we are subsetting the data to only include those voronois above the 'target' that can be seen in blue. These would be recommended for further intervention, such as the expansion of existing health facilities or placement of new facilities.  
+Here, we are subsetting the data to only include those voronois above the 'target' that can be seen in blue. These would be recommended for further intervention, such as the expansion of existing health facilities or placement of new facilities.
+
 ```{r target,message=FALSE}
 sub <- subset(v, sum > 5000)
 
@@ -126,3 +165,12 @@ ggplot() + geom_polygon(
   labs(x = "", y = "")
 ```
 
+# Further examples
+
+
+# Further Reading
+
+
+
+
+# References
