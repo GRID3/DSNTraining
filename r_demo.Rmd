@@ -19,6 +19,7 @@ require(ggplot2)
 
 
 Load in health facility locations, ward boundaries and gridded population (women age 15-49) data for Kaduna State.
+<!--- Can we include references to the datasets. Are these publicly available? ---> 
 
 ```{r data}
 data <- read.csv("Data/kaduna_health_sub.csv")
@@ -77,6 +78,8 @@ ggplot() + geom_polygon(
 ```
 
 This shows an estimation of health facility coverage. Based on area, you can start to identify places that could benefit from new facilities. However, we first need to take the population estimates into account to find out how many people are being covered. Let's compare population density to health facility density.
+
+<!--- It would be nice to explain why you are using a focal window --->
 
 We are going to sum each in a 3x3 window to look at population density and health facility density.
 ```{r pop dens,error=TRUE}
