@@ -1,0 +1,121 @@
+---
+title: "Using GRID3 Data"
+author: "Alina Game"
+date: "10 November 2019"
+output:
+  html_document: default
+---
+
+Using geospatial analysis in R, this demo will show an assessment of health facility coverage for maternal health using the GRID3 population data. 
+
+
+```{r setup, include=FALSE}
+require(sp)
+require(raster)
+require(dismo)
+require(spatialEco)
+require(ggplot2)
+
+```
+
+
+Load in health facility locations, ward boundaries and gridded population (women age 15-49) data for Kaduna State.
+
+```{r data}
+data<-read.csv("Data/kaduna_health_sub.csv")
+r<-raster("Data/nga_pop_wocba.tif")
+boundaries<- shapefile("Data/kaduna_wards.shp")
+```
+
+View the health facility data.
+
+```{r view}
+head(data[8:18],n=3)
+```
+
+
+The data includes private health facilities, subset the data to only include public health facilities.
+
+```{r subset}
+data_sub<-data[data$ownership=="Public",]
+```
+
+Create a spatial point dataset using the coordinates in the data and visualise the locations.
+```{r sp,message=FALSE}
+points <- SpatialPointsDataFrame(data_sub[,c("longitude", "latitude")],data_sub) 
+
+theme<-theme(axis.ticks.y = element_blank(),axis.text.y = element_blank(),
+                  axis.ticks.x = element_blank(),axis.text.x = element_blank())
+
+ggplot() +  geom_polygon(data=boundaries, aes(x=long, y=lat, group=group), fill="white", 
+                         colour="black", alpha=1) +
+            labs(x="", y="")+
+            theme+
+            geom_point(data=data_sub, aes(x=longitude, y=latitude), color="blue")
+```
+
+Visualise the gridded population data 
+```{r grid vis}
+plot(boundaries)
+plot(r,add=TRUE)
+          
+```
+
+Create a set of voronoi polygons from the point locations. 
+
+```{r voronois,message=FALSE}
+v<-voronoi(points)
+ggplot() +  geom_polygon(data=v, aes(x=long, y=lat, group=group), fill="white", 
+        colour="black", alpha=1) +
+        labs(x="", y="")+ 
+        theme+
+        geom_point(data=data_sub, aes(x=longitude, y=latitude), color="blue")
+
+```
+
+This shows an estimation of health facility coverage. Based on area, you can start to identify places that could benefit from new facilities. However, we first need to take the population estimates into account to find out how many people are being covered. Let's compare population density to health facility density.
+
+We are going to sum each in a 3x3 window to look at population density and health facility density.
+```{r pop dens,error=TRUE}
+a <- focalWeight(r,0.025,"circle")
+a[a>0] <- 1
+p_dens <- focal(r, w=a, fun=sum,na.rm=TRUE)
+plot(p_dens,main="Population Density")
+
+rast<-rasterize(points,r,field=1)
+hf_dens <- focal(rast, w=a, fun=sum,na.rm=TRUE)
+plot(hf_dens,main="Health Facility Density")
+
+```
+
+
+We are going to look at the relationship between the facility density and population density. We can also use this to derive targets of the number of people per health facility.
+```{r lm,warning=FALSE,message=FALSE}
+plot(p_dens,hf_dens,xlab="population density 3km",ylab="hfac density 3km")
+abline(lm(values(hf_dens)~values(p_dens)))
+
+```
+
+We could use a target of 5000 people per health facility to look at areas where health facilities are going to be serving too many people.Using zonal statistics, we need to calculate the number of people in each voronoi polyon. 
+
+```{r zonal,message=FALSE}
+z.stat <- zonal.stats(v, r, stat=sum, trace=FALSE, plot=FALSE)
+z <- data.frame(ID=v$name,sum=z.stat)
+head(z,nrow=3)
+
+v@data <-data.frame(v@data, z[match(v@data[,"name"], z[,"ID"]),])
+
+```
+
+Here, we are subsetting the data to only include those voronois above the 'target' that can be seen in blue. These would be recommended for further intervention, such as the expansion of existing health facilities or placement of new facilities.  
+```{r target,message=FALSE}
+sub <- subset(v, sum>5000)
+
+ggplot() +  geom_polygon(data=v, aes(x=long, y=lat, group=group), fill="white", 
+        colour="black", alpha=1) +
+        geom_polygon(data=sub, aes(x=long, y=lat, group=group), fill="skyblue2", 
+        colour="blue", alpha=1) +
+        theme+
+        labs(x="", y="")
+```
+
