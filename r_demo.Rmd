@@ -43,18 +43,18 @@ Create a spatial point dataset using the coordinates in the data and visualise t
 ```{r sp,message=FALSE}
 points <- SpatialPointsDataFrame(data_sub[, c("longitude", "latitude")], data_sub)
 
+```{r locations, message=FALSE}
 theme <- theme(
   axis.ticks.y = element_blank(), axis.text.y = element_blank(),
   axis.ticks.x = element_blank(), axis.text.x = element_blank()
 )
 
-ggplot() + geom_polygon(
-  data = boundaries, aes(x = long, y = lat, group = group), fill = "white",
-  colour = "black", alpha = 1
-) +
+ggplot() + 
+  geom_polygon(
+  data = boundaries, aes(x = long, y = lat, group = group), fill = "white", colour = "black", alpha = 1) +
+  geom_point(data = data_sub, aes(x = longitude, y = latitude), color = "blue") +
   labs(x = "", y = "") +
-  theme +
-  geom_point(data = data_sub, aes(x = longitude, y = latitude), color = "blue")
+  theme
 ```
 
 Visualise the gridded population data 
