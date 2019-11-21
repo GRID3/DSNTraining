@@ -56,7 +56,7 @@ We have four datasets used in this example:
 3. **Gridded population (women age 15-49) data for Kaduna State**
 4. **State boundary**
 
-```{r data}
+```{r data, results = 'hide'}
 health_facilities <- read.csv("Data/kaduna_health_sub.csv", fileEncoding="latin1")
 population <- raster("Data/nga_pop_wocba.tif")
 ward_boundaries <- st_read("Data/kaduna_wards.shp")
