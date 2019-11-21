@@ -30,26 +30,29 @@ require(sp)
 require(raster)
 require(dismo)
 require(spatialEco)
-require(ggplot2)
+require(tmap)
+require(leaflet)
 ```
 
 # Loading Datasets
 
-We have three datasets used in this example:
+We have four datasets used in this example:
 
-<!--- Can we include references to the datasets. Are these publicly available? ---> 
+> These datasets can be obtained from the GRID3 Nigeria Data portal at https://grid3.gov.ng/
 
 1. **Health facility locations**: 
 2. **Ward boundaries**
 3. **Gridded population (women age 15-49) data for Kaduna State**
+4. **State boundary**
 
 ```{r data}
 data <- read.csv("Data/kaduna_health_sub.csv")
 r <- raster("Data/nga_pop_wocba.tif")
 boundaries <- shapefile("Data/kaduna_wards.shp")
+state<-shapefile("Data/kaduna_state.shp")
 ```
 
-We will view our health facilty data below. In total there are `r nrow(data)` health centres recorded within the dataset. This includes data such as their location, whether the type of health centre *(primary, secondary, terariary)*, and whether it is private or publicly owned. An example of some of the data is shown below:
+We will view our health facilty data below. In total there are `r nrow(data)` health centres recorded within the dataset. This includes data such as their location, whether the type of health centre *(primary, secondary, tertiary)*, and whether it is private or publicly owned. An example of some of the data is shown below:
 
 ```{r view}
 head(data[8:18], n = 3)
@@ -61,7 +64,7 @@ For our example, we are only interested in **public** health centers. We will th
 data_sub <- data[data$ownership == "Public", ]
 ```
 
-In order to conduct spatial analysis on the data, we must convert these into a spatial object. 
+In order to conduct spatial analysis on the data, we must convert these into a spatial object: 
 
 ```{r sp}
 points <- SpatialPointsDataFrame(data_sub[, c("longitude", "latitude")], data_sub)
@@ -70,29 +73,28 @@ points <- SpatialPointsDataFrame(data_sub[, c("longitude", "latitude")], data_su
 We will quickly visualise this data below:
 
 ```{r locations, message=FALSE}
-theme <- theme(
-  axis.ticks.y = element_blank(), axis.text.y = element_blank(),
-  axis.ticks.x = element_blank(), axis.text.x = element_blank()
-)
 
-ggplot() + 
-  geom_polygon(
-  data = boundaries, aes(x = long, y = lat, group = group), fill = "white", colour = "black", alpha = 1) +
-  geom_point(data = data_sub, aes(x = longitude, y = latitude), color = "blue") +
-  labs(x = "", y = "") +
-  theme
+map <- leaflet() %>%
+addProviderTiles(providers$Esri.WorldImagery) %>%
+addCircleMarkers(data=points,fillColor='blue',radius=2,fillOpacity=1)
+map
+
 ```
 
 Visualise the gridded population data:
 
-```{r grid vis}
-plot(boundaries)
-plot(r, add = TRUE)
+```{r grid vis,message=FALSE}
+tm_shape(state)+
+  tm_borders()+
+  tm_fill(col="black")+
+  tm_shape(r)+
+  tm_raster(title="Population")+
+  tm_legend(legend.position=c("left","top"),legend.outside=TRUE)
 ```
 
 # Coverage Calculations
 
-We are interested in X...
+We are interested in finding out the health facility coverage, to identify populations that may be underserved. We will use voronoi polygons which provide an estimation of coverage, where for each health facility there will be a corresponding region that consists of area closer to that facility than any other. 
 
 Create a set of voronoi polygons from the point locations. We can use the `voronoi` function from the package **dismo** to calculate these:
 
@@ -102,31 +104,41 @@ v <- voronoi(points)
 
 Again, we will visualise these below:
 
-```{r, message=FALSE}
-ggplot() + geom_polygon(
-  data = v, aes(x = long, y = lat, group = group), fill = "white",
-  colour = "black", alpha = 1
-) +
-  labs(x = "", y = "") +
-  theme +
-  geom_point(data = data_sub, aes(x = longitude, y = latitude), color = "blue")
+```{r, message=FALSE,warning=FALSE}
+tm_shape(v)+
+ tm_borders()+
+ tm_fill()+
+tm_shape(points)+
+ tm_dots(size=0.05,col="blue")
 ```
 
 This shows an estimation of health facility coverage. Based on area, you can start to identify places that could benefit from new facilities. However, we first need to take the population estimates into account to find out how many people are being covered. Let's compare population density to health facility density.
 
-<!--- It would be nice to explain why you are using a focal window --->
+We will use focal statistics which uses a moving window to calculate density. This allows a continuous comparison to made, rather than using a set catchment area distance that may not adhered to on the ground. We are going to sum each layer in a 3x3 cell size window to look at population density and health facility density.
 
-We are going to sum each in a 3x3 window to look at population density and health facility density.
-
-```{r pop dens, error=TRUE}
+```{r pop dens, error=TRUE,message=FALSE}
 a <- focalWeight(r, 0.025, "circle")
 a[a > 0] <- 1
-p_dens <- focal(r, w = a, fun = sum, na.rm = TRUE)
-plot(p_dens, main = "Population Density")
+#p_dens <- focal(r, w = a, fun = sum, na.rm = TRUE)
 
-rast <- rasterize(points, r, field = 1)
-hf_dens <- focal(rast, w = a, fun = sum, na.rm = TRUE)
-plot(hf_dens, main = "Health Facility Density")
+#rast <- rasterize(points, r, field = 1)
+#hf_dens <- focal(rast, w = a, fun = sum, na.rm = TRUE)
+
+p_dens<-readRDS("p_dens")
+hf_dens<-readRDS("hf_dens")
+
+t1<-tm_shape(p_dens)+
+    tm_raster(title="Population Density")+
+    tm_legend(legend.position=c("left","bottom"))
+
+t2<-tm_shape(hf_dens)+
+    tm_raster(title="Health Facility Density")+
+    tm_legend(legend.position=c("left","bottom"))
+
+maps <- tmap_mode("plot")
+tmap_arrange(t1,t2, widths = c(.5, .5))
+tmap_mode(maps)
+
 ```
 
 # Identifying Relationships
@@ -134,43 +146,35 @@ plot(hf_dens, main = "Health Facility Density")
 We are going to look at the relationship between the facility density and population density. We can also use this to derive targets of the number of people per health facility.
 
 ```{r lm,warning=FALSE,message=FALSE}
-plot(p_dens, hf_dens, xlab = "population density 3km", ylab = "hfac density 3km")
+plot(p_dens, hf_dens, xlab = "population density 3km", ylab = "health facility density 3km")
 abline(lm(values(hf_dens) ~ values(p_dens)))
 ```
 
 We could use a target of 5000 people per health facility to look at areas where health facilities are going to be serving too many people.Using zonal statistics, we need to calculate the number of people in each voronoi polyon. 
 
-```{r zonal,message=FALSE}
-z.stat <- zonal.stats(v, r, stat = sum, trace = FALSE, plot = FALSE)
-z <- data.frame(ID = v$name, sum = z.stat)
-head(z, nrow = 3)
+```{r zonal,message=FALSE,WARNING=FALSE}
+#z.stat <- zonal.stats(v, r, stat = sum, trace = FALSE, plot = FALSE)
+
+#z.stat<-readRDS("z.stat")
+#z <- data.frame(ID = v$name, sum = z.stat)
+#head(z, nrow = 3)
+
+z<-readRDS("z")
 
 v@data <- data.frame(v@data, z[match(v@data[, "name"], z[, "ID"]), ])
 ```
 
-Here, we are subsetting the data to only include those voronois above the 'target' that can be seen in blue. These would be recommended for further intervention, such as the expansion of existing health facilities or placement of new facilities.
+Here, we are subsetting the data to only include those voronois above the 'target' that can be seen in red. These would be recommended for further intervention, such as the expansion of existing health facilities or placement of new facilities.
 
-```{r target,message=FALSE}
+```{r target,message=FALSE,warning=FALSE}
 sub <- subset(v, sum > 5000)
 
-ggplot() + geom_polygon(
-  data = v, aes(x = long, y = lat, group = group), fill = "white",
-  colour = "black", alpha = 1
-) +
-  geom_polygon(
-    data = sub, aes(x = long, y = lat, group = group), fill = "skyblue2",
-    colour = "blue", alpha = 1
-  ) +
-  theme +
-  labs(x = "", y = "")
+tm_shape(v)+
+ tm_borders()+
+ tm_fill(col="white")+
+  tm_shape(sub)+
+  tm_borders()+
+  tm_fill(col="red")
+
 ```
 
-# Further examples
-
-
-# Further Reading
-
-
-
-
-# References
