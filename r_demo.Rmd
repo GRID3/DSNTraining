@@ -1,23 +1,27 @@
 ---
-title: "Practical 2: Assessing Health Facilities Coverage"
+title: 'Practical 2: Assessing Health Facilities Coverage'
 author: "GRID3"
 date: "22 November 2019"
-output: html_document
+output:
+  html_document: default
+  grid3rmd::html_grid3:
+    number_sections: false
+    code_folding: show
 ---
 
 ```{r, include=F}
 knitr::opts_chunk$set(
   message = F,
-  warning = F
+  warning = F,
+  out.width = "100%"
 )
 ```
 
-
 This exercise provides an example of how we can use GRID3 data within an application. 
 
-The problem: We want to assess health facility coverage for maternal healthcare in Kaduna state. We are interested in finding out which areas are over-stretched with a high number of women of child-bearing age (WOCBA) per health-facility. By identifying a target number of people per health facility, we can begin to highlight locations that may need further invention. 
+**The problem**: We want to assess health facility coverage for maternal healthcare in Kaduna state. We are interested in finding out which areas are over-stretched with a high number of women of child-bearing age (WOCBA) per health-facility. By identifying a target number of people per health facility, we can begin to highlight locations that may need further invention. 
 
-# Exercise Overview {-}
+# Exercise Overview
 
 Using geospatial analysis in R, this demo will show an assessment of health facility coverage for maternal health using the GRID3 population data for Kaduna State.
 
@@ -50,10 +54,10 @@ We have four datasets used in this example:
 1. **Health facility locations**: 
 2. **Ward boundaries**
 3. **Gridded population (women age 15-49) data for Kaduna State**
-4. **State boundary **
+4. **State boundary**
 
 ```{r data}
-health_facilities <- read.csv("Data/kaduna_health_sub.csv")
+health_facilities <- read.csv("Data/kaduna_health_sub.csv", fileEncoding="latin1")
 population <- raster("Data/nga_pop_wocba.tif")
 ward_boundaries <- st_read("Data/kaduna_wards.shp")
 state_boundaries <- st_read("Data/kaduna_state.shp")
@@ -62,7 +66,8 @@ state_boundaries <- st_read("Data/kaduna_state.shp")
 We will view our health facilty data below. In total there are `r nrow(data)` health centres recorded within the dataset. This includes data such as their location, whether the type of health centre *(primary, secondary, tertiary)*, and whether it is private or publicly owned. An example of some of the data is shown below:
 
 ```{r view}
-datatable(head(health_facilities[8:18])) # printing first rows of dataset
+datatable(head(health_facilities[8:18]),
+          options = list(scrollX = TRUE)) # printing first rows of dataset
 ```
 
 # Step 2: Filtering Public Health Facilities
@@ -104,12 +109,8 @@ tm_shape(state_boundaries) +
 
 We are interested in finding out the health facility coverage across space. 
 
-
 - Idea: optimize the  partitioning of the area into polygons such that each polygon contains one health facility.
 - Method: [Voronoi Polygon](https://en.wikipedia.org/wiki/Voronoi_diagram)
-
-
-
 
 ```{r voronois}
 voronoi <- dismo::voronoi(st_coordinates(public_hf_pt)) # compute voronoi from points coordinates
@@ -132,10 +133,10 @@ tm_shape(voronoi) +
 
 # Step 5: Identifying Population Coverage Target with Zonal Statistics
 
-
 Idea: find outliers in population per health facility to set a target.
 
 ## Using Zonal statistics
+
 *Zonal statistic*: summmary statistics of raster values at polygon level.
 
 > The Zonal statistic function requires more time than we have! Let's load the precalculation.
