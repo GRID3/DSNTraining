@@ -51,8 +51,6 @@ library(tmap)      # Easy way of producing maps
 5 datasets are loaded into the analysis, representing typical spatial datasets. These datasets have been accessed through the GRID3 data portal.
 
 - **Population Data**: A raster with population data at 100m resolution for Nigeria
-- **Built Up Areas**: Place or area with clustered or scattered buildings and a permanent human population (city, settlement, town, village) and by definition has no legal boundaries
-- **Dump Locations**: This provides the location of waste facilities in the Lagos State
 - **Roads**: Primary roads covering the whole of Nigeria
 
 ```{r loadData, include=FALSE}
@@ -61,7 +59,7 @@ dumps <- sf::read_sf(dsn = "data/lagos-dump-sites/dump-sites.geojson")
 roads <- sf::read_sf("data/roads-cleaned/roads.shp")
 boundaries <- sf::read_sf("data/lagos-state-administrative-boundaries/state-administrative-boundaries.geojson")
 
-population <- raster("data/GRID3_NGA_PopEst_v1_2_mean.tif")
+≈ <- raster("data/GRID3_NGA_PopEst_v1_2_mean.tif")
 ```
 
 First we will visualise the data. We have some boundary data for the states:
@@ -76,7 +74,6 @@ tm_shape(boundaries) +
   tm_shape(dumps) +
   tm_dots(size = 0.01)
 ```
-
 
 
 ----
