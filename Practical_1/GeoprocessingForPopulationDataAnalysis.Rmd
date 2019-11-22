@@ -3,9 +3,10 @@ title: "Practical 1: Geoprocessing for Population Data Analysis"
 author: "Edith Darin, Alina Game, Michael Harper"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
-  grid3rmd::html_grid3:
-    code_folding: show
   html_document: default
+  grid3rmd::html_grid3:
+    number_sections: false
+    code_folding: show
 ---
 
 ```{r setup, include = FALSE}
@@ -43,6 +44,7 @@ library(raster)
 library(rgdal)
 library(sf)
 library(tmap)      # Easy way of producing maps
+library(spatialEco)
 ```
 
 ## Load data
@@ -73,6 +75,8 @@ Two summaries are calculated:
 We will use the existing Lagos admin 1 boundaries to calculate population estimates. These are displayed below:
 
 ```{r}
+tmap_mode("view") # Create a static map 
+
 tm_shape(lagos_sp) +
   tm_polygons(alpha = 0, border.col = "dodgerblue")
 ```
@@ -80,13 +84,13 @@ tm_shape(lagos_sp) +
 We can use the 'zonal.stats' function to calculate a summary of the population for each region in the shapefile. These calculations are merged to the original dataset:
 
 ```{r}
-lagos$pop <- zonal.stats(x = lagos_sp, population, stat = sum)
+lagos_sp$pop <- zonal.stats(x = lagos_sp, population, stat = sum, plot = FALSE)
 ```
 
 We can visualise the final population raster below:
 
 ```{r}
-tm_shape(lagos) +
+tm_shape(lagos_sp) +
   tm_polygons("pop")
 ```
 
@@ -94,7 +98,7 @@ tm_shape(lagos) +
 
 If we have a spatial feature which does not have an associated area with it, we will normally wish to calculate an area around this feature to work out the total number of people living wihthin the area surrounding the object.
 
-We can apply buffers around objects, and can be applied to **points**, **lines** and **polygons**. This is useful to know which areas fall within a certain distance from an attribute.  Note, we must convert the geographic coordinate system into a planar coordinate system to enable us to calculate distance. The topic of coordinate systems is not covered fully in this training. We calculate a buffer below using the `st_buffer` function, calculating a buffer of 5000 metres:
+We can apply buffers around objects, and can be applied to **points**, **lines** and **polygons**. This is useful to know which areas fall within a certain distance from an attribute.  Note, we must convert the geographic coordinate system into a planar coordinate system to enable us to calculate distance. The topic of coordinate systems is not covered fully in this training. We calculate a buffer below using the `st_buffer` function, calculating a buffer of 5000 metres. `st_union' is used to merge the overlapping shapefiles into a single shapefile.
 
 ```{r, message = FALSE}
 # Convert the geographic coordinate system to planar so that we can do distance based calculations
@@ -108,11 +112,8 @@ roads_buffer <- sf::st_buffer(roadsLagos_planar, 5000) %>%
 roads_buffer <- st_transform(roads_buffer, crs = 4326)
 ```
 
-The results are displayed below. A buffer has been created for each line of the shapefile, and therefore we now have multiple polygons, some of which are overlapping. Depending on your application, you may only need to have a single proximity buffer. We will show below how we can remove these overlapping datasets.
 
 ```{r}
-tmap_mode("view") # Create a static map 
-
 # Plot Data
 map_roads <-
   tm_shape(roadsLagos) +
@@ -130,36 +131,29 @@ map_buffer <-
 tmap_arrange(map_roads, map_buffer, ncol = 2, sync = TRUE)
 ```
 
-```{r}
+As before, we can use the `zonal.stats` function to calculate the sum of the population within a region.
 
+```{r}
 roads_buffer_sp <- as(roads_buffer, "Spatial")
+roads_buffer_sp <- SpatialPolygonsDataFrame(Sr = roads_buffer_sp, data = data.frame(ID = 1), match.ID = FALSE)
 
 spatialEco::zonal.stats(roads_buffer_sp, population, stat = sum)
 ```
 
-
-
-
 ------
 
-# Appnedix: Geoprocessing Techniques
+# Appendix: Geoprocessing Techniques
 
 In the previous exercise, we presented some cleaned data. These scripts here include some of the extra steps taken to get the data in the correct format. Such data cleaning and preparation is often an important part of the geospatial data analysis workflow.
-
-With our data, we will demonstrate three techniques:
-
-1. **Clip**:
-2. **Buffer**:
-3. **Zonal Summary**:
 
 ## Clip vector data
 
 We have road data for the whole of Nigeria which we can use to show clipping. We will use the **st_intersection** function for this:
 
 ```{r}
-roadsLagos <- sf::st_intersection(boundaries, roads)
+roads <- sf::read_sf("data/roads-cleaned/roads.shp")
 
-write_sf(roadsLagos, "data/nigeria_roads/lagosRoads.shp")
+roadsLagos <- sf::st_intersection(boundaries, roads)
 ```
 
 The results of this clipping are shown below:
@@ -190,22 +184,6 @@ map_roads_lagos <-
 tmap_arrange(map_roads_nigeria, map_boundary_lagos, map_roads_lagos, ncol = 3)
 ```
 
-
-We display these below:
-
-```{r}
-# Plot Data
-map_buffer_dissolved <-
-  tm_shape(roads_buffer_dissolved) +
-  tm_polygons() +
-  tm_shape(roadsLagos, ) +
-  tm_lines() +
-  tm_layout(title = "Dissolved Polygons")
-
-# Plot results
-tmap_arrange(map_buffer, map_buffer_dissolved, ncol = 2, sync = TRUE)
-```
-
 ## Clip Raster Data
 
 We can combine our spatial datasets with the GRID3 population data.  Unfortunately rasters do not play well with **sf** yet. We must therefore convert the data to an **sp** object. R requires two steps:
@@ -216,7 +194,7 @@ We can combine our spatial datasets with the GRID3 population data.  Unfortunate
 We will use these both to crop the population raster to Lagos state:
 
 ```{r}
-roads_buffer_sp <- as(roads_buffer_dissolved, 'Spatial')
+roads_buffer_sp <- as(roads_buffer, 'Spatial')
 ```
 
 ```{r}
@@ -225,22 +203,9 @@ population_road_buffer <- raster::crop(population, roads_buffer_sp) %>%
 ```
 
 ```{r}
-tm_shape(roads_buffer_dissolved) +
+tm_shape(roads_buffer_sp) +
   tm_polygons(alpha = 0) +
 tm_shape(population_road_buffer) +
   tm_raster() +
   tm_layout(title = "Population within 5km of major road")
 ```
-
-## Summary Statistics
-
-```{r}
-cellStats(x = population_road_buffer, sum)
-```
-
-
-
-
-
-
-
