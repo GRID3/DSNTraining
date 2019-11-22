@@ -42,28 +42,107 @@ library(sp)
 library(raster)
 library(rgdal)
 library(sf)
-library(stars)
-
 library(tmap)      # Easy way of producing maps
 ```
 
 ## Load data
 
-5 datasets are loaded into the analysis, representing typical spatial datasets. These datasets have been accessed through the GRID3 data portal.
+3 datasets are loaded into the analysis, representing typical spatial datasets. These datasets have been accessed through the GRID3 data portal.
 
 - **Population Data**: A raster with population data at 100m resolution for Nigeria
 - **Roads**: Primary roads covering the whole of Nigeria
+- **Roads**: a cropped dataset of road locations
+- **Lagos State Admin 1 Boundaries**
 
 ```{r loadData, include=FALSE}
-roads <- sf::read_sf("data/roads-cleaned/roads.shp")
+roadsLagos <- sf::read_sf("data/nigeria_roads/lagosRoads.shp")
 boundaries <- sf::read_sf("data/lagos-state-administrative-boundaries/state-administrative-boundaries.geojson")
-
 population <- raster("data/GRID3_NGA_PopEst_v1_2_mean.tif")
+lagos_sp <- shapefile("data/adminBoundaries/lagos_admin.shp")
 ```
 
-----
+# Calculating Population Summaries
 
-# Additional Exercise: Geoprocessing Techniques
+Two summaries are calculated:
+
+1. One for existing boundaries
+2. One for a buffer of a spatial line
+
+## Existing Polygon
+
+We will use the existing Lagos admin 1 boundaries to calculate population estimates. These are displayed below:
+
+```{r}
+tm_shape(lagos_sp) +
+  tm_polygons(alpha = 0, border.col = "dodgerblue")
+```
+
+We can use the 'zonal.stats' function to calculate a summary of the population for each region in the shapefile. These calculations are merged to the original dataset:
+
+```{r}
+lagos$pop <- zonal.stats(x = lagos_sp, population, stat = sum)
+```
+
+We can visualise the final population raster below:
+
+```{r}
+tm_shape(lagos) +
+  tm_polygons("pop")
+```
+
+## Lines or polygons
+
+If we have a spatial feature which does not have an associated area with it, we will normally wish to calculate an area around this feature to work out the total number of people living wihthin the area surrounding the object.
+
+We can apply buffers around objects, and can be applied to **points**, **lines** and **polygons**. This is useful to know which areas fall within a certain distance from an attribute.  Note, we must convert the geographic coordinate system into a planar coordinate system to enable us to calculate distance. The topic of coordinate systems is not covered fully in this training. We calculate a buffer below using the `st_buffer` function, calculating a buffer of 5000 metres:
+
+```{r, message = FALSE}
+# Convert the geographic coordinate system to planar so that we can do distance based calculations
+roadsLagos_planar <- st_transform(roadsLagos, crs = 26393)
+
+# Calculate buffer
+roads_buffer <- sf::st_buffer(roadsLagos_planar, 5000) %>%
+  st_union()
+
+# Convert back to geographic coordinate system
+roads_buffer <- st_transform(roads_buffer, crs = 4326)
+```
+
+The results are displayed below. A buffer has been created for each line of the shapefile, and therefore we now have multiple polygons, some of which are overlapping. Depending on your application, you may only need to have a single proximity buffer. We will show below how we can remove these overlapping datasets.
+
+```{r}
+tmap_mode("view") # Create a static map 
+
+# Plot Data
+map_roads <-
+  tm_shape(roadsLagos) +
+  tm_lines() +
+  tm_layout(title = "Road")
+
+map_buffer <-
+  tm_shape(roads_buffer) +
+  tm_polygons() +
+  tm_shape(roadsLagos) +
+  tm_lines() +
+  tm_layout(title = "Buffer")
+
+# Plot results
+tmap_arrange(map_roads, map_buffer, ncol = 2, sync = TRUE)
+```
+
+```{r}
+
+roads_buffer_sp <- as(roads_buffer, "Spatial")
+
+spatialEco::zonal.stats(roads_buffer_sp, population, stat = sum)
+```
+
+
+
+
+------
+
+# Appnedix: Geoprocessing Techniques
 
 In the previous exercise, we presented some cleaned data. These scripts here include some of the extra steps taken to get the data in the correct format. Such data cleaning and preparation is often an important part of the geospatial data analysis workflow.
 
@@ -79,6 +158,8 @@ We have road data for the whole of Nigeria which we can use to show clipping. We
 
 ```{r}
 roadsLagos <- sf::st_intersection(boundaries, roads)
+
+write_sf(roadsLagos, "data/nigeria_roads/lagosRoads.shp")
 ```
 
 The results of this clipping are shown below:
@@ -109,50 +190,6 @@ map_roads_lagos <-
 tmap_arrange(map_roads_nigeria, map_boundary_lagos, map_roads_lagos, ncol = 3)
 ```
 
-## Buffer data
-
-We can apply buffers around objects, and can be applied to **points**, **lines** and **polygons**. This is useful to know which areas fall within a certain distance from an attribute.  Note, we must convert the geographic coordinate system into a planar coordinate system to enable us to calculate distance. The topic of coordinate systems is not covered fully in this training. We calculate a buffer below using the `st_buffer` function, calculating a buffer of 5000 metres:
-
-```{r, message = FALSE}
-# Convert the geographic coordinate system to planar so that we can do distance based calculations
-roadsLagos_planar <- st_transform(roadsLagos, crs = 26393)
-
-# Calculate buffer
-roads_buffer <- sf::st_buffer(roadsLagos_planar, 5000)
-
-# Convert back to geographic coordinate system
-roads_buffer <- st_transform(roads_buffer, crs = 4326)
-```
-
-The results are displayed below. A buffer has been created for each line of the shapefile, and therefore we now have multiple polygons, some of which are overlapping. Depending on your application, you may only need to have a single proximity buffer. We will show below how we can remove these overlapping datasets.
-
-```{r}
-tmap_mode("view") # Create a static map 
-
-# Plot Data
-map_roads <-
-  tm_shape(roadsLagos) +
-  tm_lines() +
-  tm_layout(title = "Road")
-
-map_buffer <-
-  tm_shape(roads_buffer) +
-  tm_polygons() +
-  tm_shape(roadsLagos) +
-  tm_lines() +
-  tm_layout(title = "Buffer")
-
-# Plot results
-tmap_arrange(map_roads, map_buffer, ncol = 2, sync = TRUE)
-```
-
-## Union
-
-If we only want a single polygon, we can use the `st_union` function to merge the shapefiles into a single object. This will remove any overlapping areas.
-
-```{r}
-roads_buffer_dissolved <- st_union(roads_buffer)
-```
 
 We display these below:
 
