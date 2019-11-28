@@ -1,5 +1,5 @@
 
-This repostiory provides an introduction of using the GRID3 spatial datasets for decision-making. The slides are available to view here: [PDF of slides](https://grid3.github.io/DSNTraining/AIBootcamp_Production%20and%20Use%20of%20Gridded%20Population%20data-%20shared.pdf)
+This repostiory provides an introduction of using the GRID3 spatial datasets for decision-making. The slides are available to view here: [PDF of slides](https://github.com/GRID3/DSNTraining/blob/master/AIBootcamp_Production%20and%20Use%20of%20Gridded%20Population%20data.pdf)
 
 ![](thumbnail.jpg)
 
