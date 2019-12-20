@@ -3,10 +3,12 @@ title: "Practical 1: Geoprocessing for Population Data Analysis"
 author: "Edith Darin, Alina Game, Michael Harper"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
+  grid3rmd::pdf_grid3: default
   html_document: default
   grid3rmd::html_grid3:
     number_sections: false
     code_folding: show
+always_allow_html: yes
 ---
 
 ```{r setup, include = FALSE}

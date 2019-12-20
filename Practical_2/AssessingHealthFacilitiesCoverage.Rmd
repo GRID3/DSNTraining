@@ -3,10 +3,11 @@ title: 'Practical 2: Assessing Health Facilities Coverage'
 author: "GRID3"
 date: "22 November 2019"
 output:
+  grid3rmd::pdf_grid3: default
+  html_document: default
   grid3rmd::html_grid3:
     number_sections: false
     code_folding: show
-  html_document: default
 ---
 
 ```{r, include=F}
